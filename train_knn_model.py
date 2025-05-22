@@ -8,12 +8,13 @@ from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.metrics import precision_score
 from tqdm import tqdm
 
+
 # DB 설정
 db_config = {
-    'host': 'localhost',         # 운영 시: 'aniting-db.cnew8oieks1a.ap-northeast-2.rds.amazonaws.com'
-    'user': 'root',              # 운영 시: 'admin'
-    'password': '1234',          # 운영 시: 'admin123'
-    'database': 'ARMS',          # 운영 시: 'aniting'
+    'host': 'aniting-db.cnew8oieks1a.ap-northeast-2.rds.amazonaws.com',
+    'user': 'aniting_user',
+    'password': 'aniting123',
+    'database': 'aniting',
     'charset': 'utf8mb4',
     'cursorclass': pymysql.cursors.DictCursor
 }
@@ -24,29 +25,29 @@ def load_data_from_db():
     with conn.cursor() as cur:
         # 사용자 벡터 구성
         cur.execute("""
-        SELECT USERS_ID, CATEGORY_ID, SCORE_VALUE FROM SCORE
-        WHERE USERS_ID LIKE 'gpt_user_%'
+        SELECT users_id, category_id, score_value FROM score
+        WHERE users_id LIKE 'gpt_user_%'
         """)
         user_rows = cur.fetchall()
 
         user_vectors = {}
         for row in user_rows:
-            uid = row['USERS_ID']
-            cid = row['CATEGORY_ID'] - 1  # 0-indexed
-            score = int(row['SCORE_VALUE'])
+            uid = row['users_id']
+            cid = row['category_id'] - 1  # 0-indexed
+            score = int(row['score_value'])
             if uid not in user_vectors:
                 user_vectors[uid] = [0] * 6
             user_vectors[uid][cid] = score
 
         # 반려동물 벡터 구성
-        cur.execute("SELECT PET_ID, TRAIT_SCORES FROM PET")
+        cur.execute("SELECT pet_id, trait_scores FROM pet")
         pets = {}
         for row in cur.fetchall():
-            pets[row['PET_ID']] = list(map(int, row['TRAIT_SCORES'].split(',')))
+            pets[row['pet_id']] = list(map(int, row['trait_scores'].split(',')))
 
         # 정답 데이터 구성
-        cur.execute("SELECT USERS_ID, TOP1_PET_ID, TOP2_PET_ID, TOP3_PET_ID FROM RECOMMEND_HISTORY")
-        ground_truth = {row['USERS_ID']: [row['TOP1_PET_ID'], row['TOP2_PET_ID'], row['TOP3_PET_ID']] for row in cur.fetchall()}
+        cur.execute("SELECT users_id, top1_pet_id, top2_pet_id, top3_pet_id FROM recommend_history")
+        ground_truth = {row['users_id']: [row['top1_pet_id'], row['top2_pet_id'], row['top3_pet_id']] for row in cur.fetchall()}
 
     conn.close()
     return user_vectors, pets, ground_truth
