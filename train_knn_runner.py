@@ -3,12 +3,18 @@ from train_knn_model import recommend, load_data_from_db
 
 def main():
     
-    # 1. 사용자 입력 받기
-    print("성향 분석을 위한 문장을 입력하세요.")
-    input_text = input(">> ")
+    print("성향 예측을 위한 질문+응답을 입력하세요.")
+    print("입력이 끝났으면 빈 줄(Enter)만 입력하세요.")
+
+    qna_list = []
+    while True:
+        qna = input(f"{len(qna_list)+1} >> ")
+        if qna.strip() == "":
+            break
+        qna_list.append(qna)
 
     # 2. KoBERT + RF로 성향 점수 예측
-    trait_scores = predict_traits(input_text)
+    trait_scores = predict_traits(qna_list)
     print("\n📊 예측된 성향 점수:")
     for k, v in trait_scores.items():
         print(f"{k}: {v}")
