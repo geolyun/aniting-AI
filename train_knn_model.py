@@ -4,18 +4,21 @@
 
 import pymysql
 import numpy as np
+import os
+from dotenv import load_dotenv
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.metrics import precision_score
 from tqdm import tqdm
 
+load_dotenv()
 
 # DB 설정
 db_config = {
-    'host': 'aniting-db.cnew8oieks1a.ap-northeast-2.rds.amazonaws.com',
-    'user': 'aniting_user',
-    'password': 'aniting123',
-    'database': 'aniting',
-    'charset': 'utf8mb4',
+    'host': os.getenv('DB_HOST'),
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
+    'database': os.getenv('DB_NAME'),
+    'charset': os.getenv('DB_CHARSET'),
     'cursorclass': pymysql.cursors.DictCursor
 }
 

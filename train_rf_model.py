@@ -1,6 +1,8 @@
 import pymysql
 import pandas as pd
 import torch
+import os
+from dotenv import load_dotenv
 from transformers import BertTokenizer, BertModel
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.multioutput import MultiOutputRegressor
@@ -9,13 +11,15 @@ from sklearn.metrics import mean_squared_error
 import joblib
 from tqdm import tqdm
 
+load_dotenv()
+
 # DB 연결 정보
 db_config = {
-    'host': 'aniting-db.cnew8oieks1a.ap-northeast-2.rds.amazonaws.com',
-    'user': 'aniting_user',
-    'password': 'aniting123',
-    'database': 'aniting',
-    'charset': 'utf8mb4'
+    'host': os.getenv('DB_HOST'),
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
+    'database': os.getenv('DB_NAME'),
+    'charset': os.getenv('DB_CHARSET')
 }
 
 # 데이터 로드
