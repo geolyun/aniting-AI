@@ -13,6 +13,14 @@ from tqdm import tqdm
 load_dotenv()
 
 # DB 설정
+# db_config = {
+#     'host': 'localhost',
+#     'user': 'root',
+#     'password': '1234',
+#     'database': 'ARMS',
+#     'charset': 'utf8mb4',
+#     'cursorclass': pymysql.cursors.DictCursor
+# }
 db_config = {
     'host': os.getenv('DB_HOST'),
     'user': os.getenv('DB_USER'),
@@ -38,11 +46,13 @@ def load_data_from_db():
             uid = row['users_id']
             cid = row['category_id'] - 1  # 0-indexed
             score = int(row['score_value'])
+
             if uid not in user_vectors:
                 user_vectors[uid] = [0] * 6
             user_vectors[uid][cid] = score
 
         # 반려동물 벡터 구성
+
         cur.execute("SELECT pet_id, trait_scores FROM pet")
         pets = {}
         for row in cur.fetchall():
