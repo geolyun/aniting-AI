@@ -4,9 +4,13 @@
 
 import pymysql
 import numpy as np
+import os
+from dotenv import load_dotenv
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.metrics import precision_score
 from tqdm import tqdm
+
+load_dotenv()
 
 # DB 설정
 # db_config = {
@@ -18,11 +22,11 @@ from tqdm import tqdm
 #     'cursorclass': pymysql.cursors.DictCursor
 # }
 db_config = {
-    'host': 'aniting-db.cnew8oieks1a.ap-northeast-2.rds.amazonaws.com',
-    'user': 'admin',
-    'password': 'admin123',
-    'database': 'aniting',
-    'charset': 'utf8mb4',
+    'host': os.getenv('DB_HOST'),
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
+    'database': os.getenv('DB_NAME'),
+    'charset': os.getenv('DB_CHARSET'),
     'cursorclass': pymysql.cursors.DictCursor
 }
 
@@ -32,7 +36,7 @@ def load_data_from_db():
     with conn.cursor() as cur:
         # 사용자 벡터 구성
         cur.execute("""
-        SELECT users_id, category_id, score_VALUE FROM score
+        SELECT users_id, category_id, score_value FROM score
         WHERE users_id LIKE 'gpt_user_%'
         """)
         user_rows = cur.fetchall()
@@ -41,16 +45,18 @@ def load_data_from_db():
         for row in user_rows:
             uid = row['users_id']
             cid = row['category_id'] - 1  # 0-indexed
-            score = int(row['score_VALUE'])
+            score = int(row['score_value'])
+
             if uid not in user_vectors:
                 user_vectors[uid] = [0] * 6
             user_vectors[uid][cid] = score
 
         # 반려동물 벡터 구성
-        cur.execute("SELECT pet_id, TRAIT_scoreS FROM pet")
+
+        cur.execute("SELECT pet_id, trait_scores FROM pet")
         pets = {}
         for row in cur.fetchall():
-            pets[row['pet_id']] = list(map(int, row['TRAIT_scoreS'].split(',')))
+            pets[row['pet_id']] = list(map(int, row['trait_scores'].split(',')))
 
         # 정답 데이터 구성
         cur.execute("SELECT users_id, top1_pet_id, top2_pet_id, top3_pet_id FROM recommend_history")
