@@ -32,19 +32,17 @@ db_config = {
     'cursorclass': pymysql.cursors.DictCursor
 }
 
-# 사용자 점수, 펫 특성, 정답, 인기도, 카테고리 정보 로딩
+# DB에서 사용자 점수, 펫 특성, 정답 추천 결과, 펫 카테고리 정보를 로드
 def load_data_from_db():
     conn = pymysql.connect(**db_config)
     with conn.cursor() as cur:
-        
         # 사용자 벡터 생성
         cur.execute("""
         SELECT users_id, category_id, score_value FROM score
         WHERE users_id LIKE 'gpt_user_%'
         """)
-        user_rows = cur.fetchall()
         user_vectors = {}
-        for row in user_rows:
+        for row in cur.fetchall():
             uid = row['users_id']
             cid = row['category_id'] - 1
             score = int(row['score_value'])
@@ -62,48 +60,45 @@ def load_data_from_db():
         for row in cur.fetchall():
             pet_category_map[row['pet_id']] = list(map(int, row['category_ids'].split(',')))
 
-        # 정답 Top3 추천 결과
+        # 추천 기록 (정답 데이터) 로딩
         cur.execute("SELECT users_id, top1_pet_id, top2_pet_id, top3_pet_id FROM recommend_history")
         ground_truth = {row['users_id']: [row['top1_pet_id'], row['top2_pet_id'], row['top3_pet_id']] for row in cur.fetchall()}
 
-        # 펫 인기 점수 계산 (Top3 빈도 기반)
-        all_top3 = [pet for trio in ground_truth.values() for pet in trio]
-        pet_popularity = Counter(all_top3)
-
     conn.close()
-    return user_vectors, pets, ground_truth, pet_popularity, pet_category_map
+    return user_vectors, pets, ground_truth, pet_category_map
 
-# 추천 함수 (KNN + 인기도 점수 보정 + 카테고리 필터링 + 동적 alpha)
-def recommend(user_vec, pet_vectors, pet_popularity, pet_category_map, top_k=3):
+# 추천 함수: 사용자 성향 벡터 → 추천 반려동물 ID 3개 반환
+def recommend(user_vec, pet_vectors, pet_category_map, top_k=3):
     user_vec = normalize(np.array(user_vec).reshape(1, -1))
+    
+    # 성향 점수 기준 상위 3개 카테고리 추출
+    top_cats = np.argsort(user_vec[0])[::-1][:3]
+    weights = np.linspace(1.0, 0.5, num=3)
 
-    # 상위 2개 카테고리 추출
-    top_cats = np.argsort(user_vec[0])[::-1][:2]
-    preferred_cat_ids = set(top_cats + 1)  # category_id는 1부터 시작
-
-    # 필터링된 후보 펫 추출
-    candidate_pets = [
-        pid for pid, cats in pet_category_map.items()
-        if preferred_cat_ids & set(cats)
-    ]
+    # 유사 카테고리를 가진 반려동물만 필터링
+    candidate_pets = []
+    for pid, cats in pet_category_map.items():
+        match_score = sum(weights[i] for i, c in enumerate(top_cats) if (c + 1) in cats)
+        if match_score > 0.7:
+            candidate_pets.append(pid)
     if not candidate_pets:
         candidate_pets = list(pet_vectors.keys())
 
-    # 유사도 계산
-    pet_matrix = normalize(np.array([pet_vectors[pid] for pid in candidate_pets]))
-    sim_scores = cosine_similarity(user_vec, pet_matrix)[0]
+    # 하이브리드 유사도 계산: 코사인 + 유클리디안 거리 기반
+    pet_matrix = np.array([pet_vectors[pid] for pid in candidate_pets])
+    cos_sim = cosine_similarity(user_vec, pet_matrix)[0]
+    euclidean_dist = np.linalg.norm(user_vec - pet_matrix, axis=1)
+    euclidean_sim = 1 / (1 + euclidean_dist)
+    hybrid_sim = 0.7 * cos_sim + 0.3 * euclidean_sim
 
-    # 펫 인기도 점수 계산
-    max_pop = max(pet_popularity.values(), default=1)
-    pop_scores = np.array([pet_popularity.get(pid, 0) / max_pop for pid in candidate_pets])
+    # 추천 다양성 향상을 위한 보너스 점수 부여
+    unique_categories = list(set(c for pid in candidate_pets for c in pet_category_map[pid]))
+    diversity_bonus = [len(set(pet_category_map[pid]) & set(unique_categories)) for pid in candidate_pets]
+    final_scores = hybrid_sim + 0.2 * np.array(diversity_bonus)
 
-    # 사용자 벡터 분산 기반으로 동적 alpha 결정
-    alpha = 0.9 if np.std(user_vec) >= 0.15 else 0.6
-    hybrid_scores = alpha * sim_scores + (1 - alpha) * pop_scores
-
-    # 상위 추천 결과 Top-K 추출
-    top_indices = np.argsort(hybrid_scores)[::-1][:top_k]
-    return [candidate_pets[i] for i in top_indices]
+    # 상위 top_k개의 반려동물 ID 반환
+    top_indices = np.argsort(final_scores)[::-1][:top_k * 2]
+    return [candidate_pets[i] for i in top_indices[:top_k]]
 
 # 평가 함수들
 def precision_at_3(pred, actual):
@@ -118,40 +113,44 @@ def reciprocal_rank(pred, actual):
 def top1_hit(pred, actual):
     return int(pred[0] in actual)
 
+def ndcg_at_3(pred, actual):
+    dcg = sum(1 / np.log2(i + 2) for i, p in enumerate(pred[:3]) if p in actual)
+    idcg = sum(1 / np.log2(i + 2) for i in range(min(len(actual), 3)))
+    return dcg / idcg if idcg > 0 else 0
+
 # 전체 실행 흐름
 def main():
-    user_vectors, pet_vectors, ground_truth, pet_popularity, pet_category_map = load_data_from_db()
+    user_vectors, pet_vectors, ground_truth, pet_category_map = load_data_from_db()
 
-    total_p3 = 0
-    total_rr = 0
-    total_top1 = 0
-    count = 0
-
+    total_p3 = total_rr = total_top1 = total_ndcg = count = 0
     print("\n[추천 결과 및 평가]")
 
     for uid, user_vec in tqdm(user_vectors.items()):
         if uid not in ground_truth:
             continue
 
-        predicted = recommend(user_vec, pet_vectors, pet_popularity, pet_category_map)
+        pred = recommend(user_vec, pet_vectors, pet_category_map, top_k=3)
         actual = ground_truth[uid]
 
-        p3 = precision_at_3(predicted, actual)
-        rr = reciprocal_rank(predicted, actual)
-        t1 = top1_hit(predicted, actual)
+        p3 = precision_at_3(pred, actual)
+        rr = reciprocal_rank(pred, actual)
+        t1 = top1_hit(pred, actual)
+        ndcg = ndcg_at_3(pred, actual)
 
-        tqdm.write(f"{uid} → 예측: {predicted}, 정답: {actual}, P@3: {p3:.2f}, RR: {rr:.2f}")
+        tqdm.write(f"{uid} → 예측: {pred}, 정답: {actual}, P@3: {p3:.2f}, RR: {rr:.2f}, NDCG@3: {ndcg:.2f}")
 
         total_p3 += p3
         total_rr += rr
         total_top1 += t1
+        total_ndcg += ndcg
         count += 1
 
     if count:
-        print("\n 평가 요약")
+        print("\n평가 요약")
         print(f"- 평균 Precision@3 (Top-3 Accuracy): {total_p3 / count:.2f}")
         print(f"- Top-1 Accuracy: {total_top1 / count:.2f}")
         print(f"- 평균 MRR: {total_rr / count:.2f}")
+        print(f"- 평균 NDCG@3: {total_ndcg / count:.2f}")
     else:
         print("평가할 사용자 데이터가 없습니다.")
 
