@@ -7,7 +7,7 @@ from transformers import BertTokenizer, BertModel
 from xgboost import XGBRegressor
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, r2_score
 import joblib
 from tqdm import tqdm
 
@@ -91,10 +91,11 @@ def main():
     xgb.fit(X_train, y_train)
 
     # 평가
-    y_pred = xgb.predict(X_test)
+    y_pred = rf.predict(X_test)
     mse = mean_squared_error(y_test, y_pred, multioutput='raw_values')
+    r2 = r2_score(y_test, y_pred, multioutput='raw_values')
     for i, trait in enumerate(expected_traits):
-        print(f"{trait} MSE: {mse[i]:.4f}")
+        print(f"{trait} MSE: {mse[i]:.4f} | R²: {r2[i]:.4f}")
 
     # 모델 저장
     joblib.dump(xgb, "xgb_model.pkl")
