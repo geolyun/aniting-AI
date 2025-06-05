@@ -28,3 +28,16 @@ routine MSE: 0.5046 | R²: -0.1224<br/><br/>
 - Top-1 Accuracy: 0.33
 - 평균 MRR: 0.49 <br/><br/><br/>
 
+
+### 데이터 207개 테스트
+
+activity MSE: 0.3530 | R²: -0.0885<br/>
+sociability MSE: 0.6045 | R²: -0.0621<br/>
+care MSE: 0.3507 | R²: -0.0797<br/>
+emotional_bond MSE: 0.3991 | R²: -0.1635<br/>
+environment MSE: 0.4893 | R²: -0.4555<br/>
+routine MSE: 0.5095 | R²: -0.2130<br/><br/>
+
+- 평균 Precision@3 (Top-3 Accuracy): 0.30
+- Top-1 Accuracy: 0.32
+- 평균 MRR: 0.50<br/><br/><br/>
