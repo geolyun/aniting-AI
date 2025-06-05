@@ -1,43 +1,15 @@
 # aniting-AI
 
 
-### 데이터 204개 테스트
+### 데이터 133개 테스트
 
-activity MSE: 0.3360 <br>
-sociability MSE: 0.3099 <br> 
-care MSE: 0.4884 <br>
-emotional_bond MSE: 0.3417 <br>
-environment MSE: 0.6033 <br>
-routine MSE: 0.2820 <br>
+activity MSE: 0.1851 | R²: -0.0711 <br/>
+sociability MSE: 0.5823 | R²: -0.1171 <br/>
+care MSE: 0.4504 | R²: -0.0456 <br/>
+emotional_bond MSE: 0.3476 | R²: -0.1953 <br/>
+environment MSE: 0.6254 | R²: -0.2062 <br/>
+routine MSE: 0.3564 | R²: 0.0008 <br/><br/>
 
-- 평균 Precision@3 (Top-3 Accuracy): 0.04
-- Top-1 Accuracy: 0.06
-- 평균 MRR: 0.09 <br><br><br>
-
-
-### 데이터 246개 테스트
-
-activity MSE: 0.3603 <br>
-sociability MSE: 0.3490 <br>
-care MSE: 0.4520 <br>
-emotional_bond MSE: 0.3381 <br>
-environment MSE: 0.6128 <br>
-routine MSE: 0.2628 <br>
-
-- 평균 Precision@3 (Top-3 Accuracy): 0.04
-- Top-1 Accuracy: 0.07
-- 평균 MRR: 0.09 <br><br><br>
-
-
-### 데이터 300개 테스트
-
-activity MSE: 0.3060
-sociability MSE: 0.4255
-care MSE: 0.6499
-emotional_bond MSE: 0.2459
-environment MSE: 0.6304
-routine MSE: 0.3298
-
-- 평균 Precision@3 (Top-3 Accuracy): 0.03
-- Top-1 Accuracy: 0.03
-- 평균 MRR: 0.06
+- 평균 Precision@3 (Top-3 Accuracy): 0.28
+- Top-1 Accuracy: 0.32
+- 평균 MRR: 0.44
