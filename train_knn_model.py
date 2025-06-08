@@ -6,7 +6,7 @@ import pymysql
 import numpy as np
 import os
 from dotenv import load_dotenv
-from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
 
 # 환경변수로 DB 접속 정보 로딩
@@ -29,6 +29,7 @@ db_config = {
     'charset': os.getenv('DB_CHARSET'),
     'cursorclass': pymysql.cursors.DictCursor
 }
+
 
 # 사용자 점수, 펫 특성, 추천 결과, 카테고리 정보 로딩
 def load_data_from_db():
@@ -71,15 +72,15 @@ def load_data_from_db():
     conn.close()
     return user_vectors, pets, ground_truth, pet_category_map
 
-# 사용자 점수 벡터와 펫 특성 벡터 간 유클리디언 거리 기반 추천 수행
-def recommend(user_vec, pet_vectors, pet_category_map, top_k=3):
+
+# KNN 기반 추천 수행
+def recommend_knn(user_vec, pet_vectors, pet_category_map, top_k=3):
     user_vec = np.array(user_vec).reshape(1, -1)
 
-    # 상위 2개 카테고리 우선 고려
+    # 상위 카테고리 2개 추출 → 관련 펫만 필터링
     top_cats = np.argsort(user_vec[0])[::-1][:2]
     preferred_cat_ids = set(top_cats + 1)  # category_id는 1부터 시작
 
-    # 펫 후보 필터링 (상위 카테고리 기반)
     candidate_pets = [
         pid for pid, cats in pet_category_map.items()
         if preferred_cat_ids & set(cats)
@@ -87,32 +88,36 @@ def recommend(user_vec, pet_vectors, pet_category_map, top_k=3):
     if not candidate_pets:
         candidate_pets = list(pet_vectors.keys())
 
-    # 유클리디언 거리 계산
-    pet_matrix = np.array([pet_vectors[pid] for pid in candidate_pets])
-    dists = euclidean_distances(user_vec, pet_matrix)[0]
+    # 후보 펫 벡터 구성
+    candidate_vectors = [pet_vectors[pid] for pid in candidate_pets]
 
-    # 거리 기준으로 가까운 순서대로 Top-K 추출
-    top_indices = np.argsort(dists)[:top_k]
-    return [candidate_pets[i] for i in top_indices]
+    # KNN 모델 학습 및 최근접 이웃 검색
+    knn = NearestNeighbors(n_neighbors=top_k, metric='euclidean')
+    knn.fit(candidate_vectors)
+    dists, indices = knn.kneighbors(user_vec)
 
-# 평가 지표 1: Precision@3
+    # 예측된 펫 ID 반환
+    return [candidate_pets[i] for i in indices[0]]
+
+
+# 평가 지표: Precision@3
 def precision_at_3(pred, actual):
     return len(set(pred) & set(actual)) / 3
 
-# 평가 지표 2: Reciprocal Rank (MRR)
+# 평가 지표: MRR (Reciprocal Rank)
 def reciprocal_rank(pred, actual):
     for i, p in enumerate(pred):
         if p in actual:
             return 1 / (i + 1)
     return 0
 
-# 평가 지표 3: Top-1 정답 포함 여부
+# 평가 지표: Top-1 정답 포함 여부
 def top1_hit(pred, actual):
     return int(pred[0] in actual)
 
+
 # 전체 실행 흐름
 def main():
-    # 데이터 로딩
     user_vectors, pet_vectors, ground_truth, pet_category_map = load_data_from_db()
 
     total_p3 = 0
@@ -122,12 +127,11 @@ def main():
 
     print("\n[추천 결과 및 평가]")
 
-    # 각 사용자에 대해 추천 결과 계산 및 평가
     for uid, user_vec in tqdm(user_vectors.items()):
         if uid not in ground_truth:
             continue
 
-        predicted = recommend(user_vec, pet_vectors, pet_category_map)
+        predicted = recommend_knn(user_vec, pet_vectors, pet_category_map)
         actual = ground_truth[uid]
 
         p3 = precision_at_3(predicted, actual)
@@ -141,7 +145,6 @@ def main():
         total_top1 += t1
         count += 1
 
-    # 평가 요약 출력
     if count:
         print("\n 평가 요약")
         print(f"- 평균 Precision@3 (Top-3 Accuracy): {total_p3 / count:.2f}")
@@ -150,6 +153,5 @@ def main():
     else:
         print("평가할 사용자 데이터가 없습니다.")
 
-# 실행 시작점
 if __name__ == "__main__":
     main()
